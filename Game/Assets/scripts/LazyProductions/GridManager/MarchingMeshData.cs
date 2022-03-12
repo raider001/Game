@@ -9,6 +9,12 @@ namespace LazyProductions.GridManager
             get;
             private set;
         }
+        
+        public int[] Triangles
+        {
+            get;
+            private set;
+        }
 
         public Vector3[] Normals
         {
@@ -22,9 +28,10 @@ namespace LazyProductions.GridManager
             private set;
         }
         
-        public MarchingMeshData(Vector3[] vertices, Vector3[] normals, Vector3[] uvs)
+        public MarchingMeshData(Vector3[] vertices, int[] triangles, Vector3[] normals, Vector3[] uvs)
         {
             Vertices = vertices;
+            Triangles = triangles;
             Normals = normals;
             Uvs = uvs;
         }

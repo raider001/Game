@@ -1,30 +1,106 @@
 ﻿using System;
-using System.CodeDom.Compiler;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace LazyProductions.GridManager
 {
     struct GRIDCELL
     {
+        public GRIDCELL(int size)
+        {
+            p = new Vector3[size];
+            val = new float[size];
+        }
         public Vector3[] p { get; set; }
 
         public float[] val { get; set; }
     }
-    
-    struct TRIANGLE {
-        public Vector3[] p { get; set; }
-    }
 
     public class MarchingCubesMeshBuilder
     {
-        public MarchingMeshData Generate(Grid grid)
+        public static MarchingMeshData Generate(Grid grid)
         {
-            return null;
+            List<Vector3> vertices = new List<Vector3>();
+
+            for (int x = 0; x < grid.Size - 1; x++)
+            {
+                for (int y = 0; y < grid.Size - 1; y++)
+                {
+                    for (int z = grid.Size - 1; z != 0; z--)
+                    {
+                        GenerateCellVectors(BuildGridCell(grid,x,y,z), 0.5f, vertices);
+                    }
+                }
+            }
+
+            int[] triangles = new int[vertices.Count];
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                triangles[i] = i;
+            }
+            
+            return new MarchingMeshData(vertices.ToArray(), triangles, null, null);
         }
 
-        int GenerateCellVectors(GRIDCELL grid, float isoLevel, TRIANGLE[] triangles)
+        /// <summary>
+        /// The indexes are as follows due to the marching cubes map.
+        ///    4------5
+        ///   /|     /|
+        ///  / |    / |
+        /// 7------6  |
+        /// |  0 __|__1
+        /// 3______2 /
+        ///
+        /// As a result, the cells need to be read in a specific order coded into this metho.
+        /// </summary>
+        /// <param name="grid"></param>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="z"></param>
+        /// <returns></returns>
+        private static GRIDCELL BuildGridCell(Grid grid, int x, int y, int z)
         {
-            int i, numberOfTriangles = 0;
+            GRIDCELL cell = new GRIDCELL
+            {
+                p = new Vector3[8],
+                val = new float[8]
+            };
+
+            int xOffset = x + 1;
+            int yOffset = y + 1;
+            int zOffset = z - 1;
+            
+            cell.p[0] = new Vector3(x,y,z);
+            cell.val[0] = grid.Point[x, y, z].Type == PointType.SOLID ? 1 : 0;
+            
+            cell.p[1] = new Vector3(xOffset,y,z);
+            cell.val[1] = grid.Point[xOffset, y, z].Type == PointType.SOLID ? 1 : 0;
+            
+            cell.p[2] = new Vector3(xOffset,y,zOffset);
+            cell.val[2] = grid.Point[xOffset, y, zOffset].Type == PointType.SOLID ? 1 : 0;
+            
+            cell.p[3] = new Vector3(x,y,zOffset);
+            cell.val[3] = grid.Point[x, y, zOffset].Type == PointType.SOLID ? 1 : 0;
+            
+            
+            cell.p[4] = new Vector3(x,yOffset,z);
+            cell.val[4] = grid.Point[x, yOffset, z].Type == PointType.SOLID ? 1 : 0;
+            
+            cell.p[5] = new Vector3(xOffset,yOffset,z);
+            cell.val[5] = grid.Point[xOffset, yOffset, z].Type == PointType.SOLID ? 1 : 0;
+            
+            cell.p[6] = new Vector3(xOffset,yOffset,zOffset);
+            cell.val[6] = grid.Point[xOffset, yOffset, zOffset].Type == PointType.SOLID ? 1 : 0;
+            
+            cell.p[7] = new Vector3(x,yOffset,zOffset);
+            cell.val[7] = grid.Point[x, yOffset, zOffset].Type == PointType.SOLID ? 1 : 0;
+            
+            return cell;
+        }
+        
+        private static void GenerateCellVectors(GRIDCELL grid, float isoLevel, List<Vector3> vertices)
+        {
+            int i = 0;
             int cubeIndex = 0;
             Vector3[] vertList = new Vector3[12];
 
@@ -43,7 +119,7 @@ namespace LazyProductions.GridManager
 
             /* Cube is entirely in/out of the surface */
             if (EdgeTable[cubeIndex] == 0)
-                return (0);
+                return;
 
             /* Find the vertices where the surface intersects the cube */
             if (Convert.ToBoolean(EdgeTable[cubeIndex] & 1))
@@ -84,23 +160,19 @@ namespace LazyProductions.GridManager
                     VertexInterp(isoLevel, grid.p[3], grid.p[7], grid.val[3], grid.val[7]);
 
             /* Create the triangle */
-            numberOfTriangles = 0;
             for (i = 0; TriangleTable[cubeIndex,i] != -1; i += 3)
             {
-                triangles[numberOfTriangles].p[0] = vertList[TriangleTable[cubeIndex,i]];
-                triangles[numberOfTriangles].p[1] = vertList[TriangleTable[cubeIndex,i + 1]];
-                triangles[numberOfTriangles].p[2] = vertList[TriangleTable[cubeIndex,i + 2]];
-                numberOfTriangles++;
+                vertices.Add(vertList[TriangleTable[cubeIndex, i]]);
+                vertices.Add(vertList[TriangleTable[cubeIndex, i + 1]]);
+                vertices.Add(vertList[TriangleTable[cubeIndex, i + 2]]);
             }
-
-            return (numberOfTriangles);
         }
 
         /*
            Linearly interpolate the position where an isosurface cuts
            an edge between two vertices, each with their own scalar value
         */
-        Vector3 VertexInterp(float isolevel,Vector3 p1, Vector3 p2,float valp1, float valp2)
+        static Vector3 VertexInterp(float isolevel,Vector3 p1, Vector3 p2,float valp1, float valp2)
         {
             float mu;
             Vector3 p;
